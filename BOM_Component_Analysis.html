@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOM Component Analysis</title>
+<style>
+:root{
+  --bg:#f5f7fb;--card:#fff;--text:#17202a;--muted:#687385;
+  --line:#e1e6ed;--accent:#315efb;--accent2:#edf2ff;
+  --good:#16835b;--warn:#b77900;--bad:#c23b3b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+.app{max-width:1500px;margin:auto;padding:24px}
+header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:20px}
+h1{margin:0;font-size:25px;letter-spacing:-.5px}
+h2{font-size:16px;margin:0 0 14px}
+.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:#9aa3ad}.dot.ok{background:var(--good)}.dot.warn{background:var(--warn)}
+.grid{display:grid;grid-template-columns:390px 1fr;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 4px 18px rgba(20,30,50,.035)}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.metric{padding:13px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.metric b{font-size:21px;display:block}.metric span{font-size:11px;color:var(--muted)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}
+label{font-size:11px;color:var(--muted);font-weight:600}
+input,select{width:100%;height:39px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:white;color:var(--text);font-size:13px}
+input:focus,select:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 13px;cursor:pointer;font-weight:650;font-size:12px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--bad)}
+button:hover{filter:brightness(.98)}
+.analysis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.scorebox{border:1px solid var(--line);border-radius:11px;padding:13px}
+.scorehead{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.bar{height:7px;background:#edf0f4;border-radius:10px;overflow:hidden}
+.bar i{height:100%;display:block;width:0;background:var(--accent);transition:width .45s ease}
+.bigscore{font-size:34px;font-weight:800;margin:5px 0}.badge{display:inline-block;padding:4px 8px;border-radius:20px;font-size:10px;font-weight:800}
+.low{background:#e6f5ee;color:var(--good)}.medium{background:#fff3d7;color:var(--warn)}.high{background:#fde8e8;color:var(--bad)}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:1450px;font-size:11px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:#f7f8fa;color:var(--muted);font-size:10px;position:sticky;top:0;z-index:1}
+tr:hover td{background:#fafbff}
+.risk{font-weight:800}.risk.low{color:var(--good);background:transparent}.risk.medium{color:var(--warn);background:transparent}.risk.high{color:var(--bad);background:transparent}
+.section{margin-top:16px}
+.toolbar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.search{max-width:330px}
+.log{background:#111827;color:#d7dee8;padding:11px;border-radius:9px;font:11px Consolas,monospace;white-space:pre-wrap;min-height:75px}
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.node{border:1px solid var(--line);background:#f8f9fb;border-radius:9px;text-align:center;padding:11px;font-size:11px;position:relative}
+.node:not(:last-child)::after{content:"→";position:absolute;right:-10px;top:50%;transform:translateY(-50%);color:#8993a2}
+.notice{background:var(--accent2);border:1px solid #d9e2ff;border-radius:10px;padding:11px;font-size:11px;color:#405070;margin-bottom:12px}
+.fade{animation:fade .35s ease}@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.app{padding:12px}.form,.analysis{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.node:not(:last-child)::after{display:none}header{flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.fade,.bar i{animation:none;transition:none}}
+</style>
+</head>
+<body>
+<div class="app fade" id="app">
+<header>
+  <div>
+    <h1>BOM Component Analysis</h1>
+    <div class="sub">Component selection, sourcing risk, lifecycle and commercial analysis</div>
+  </div>
+  <div class="status"><span id="syncDot" class="dot"></span><span id="syncStatus">Local analysis mode</span></div>
+</header>
+
+<div class="metrics">
+  <div class="metric"><b id="mCount">0</b><span>Master BOM components</span></div>
+  <div class="metric"><b id="mHigh">0</b><span>High-risk components</span></div>
+  <div class="metric"><b id="mAvg">0</b><span>Average risk</span></div>
+  <div class="metric"><b id="mStale">0</b><span>Verification overdue</span></div>
+</div>
+
+<div class="grid">
+<section class="card">
+<h2>Component data</h2>
+<div class="notice">Enter supplier and lifecycle information here. The risk engine recalculates automatically. Google Sheets synchronization is intentionally isolated behind the API endpoint in the configuration section below.</div>
+<div class="form">
+<div class="field"><label>MPN *</label><input id="mpn" placeholder="TPS62160DQCR"></div>
+<div class="field"><label>Manufacturer *</label><input id="manufacturer" placeholder="Texas Instruments"></div>
+<div class="field"><label>Lifecycle</label><select id="lifecycle"><option>Active</option><option>NRND</option><option>Obsolete</option><option>Unknown</option></select></div>
+<div class="field"><label>Package</label><input id="package" placeholder="VSON-10"></div>
+<div class="field"><label>RoHS</label><select id="rohs"><option>Compliant</option><option>Unknown</option><option>Non-compliant</option></select></div>
+<div class="field"><label>REACH</label><select id="reach"><option>Compliant</option><option>Unknown</option><option>Non-compliant</option></select></div>
+<div class="field"><label>Lead time (weeks)</label><input id="lead" type="number" min="0" value="6"></div>
+<div class="field"><label>Distributor count</label><input id="dist" type="number" min="0" value="8"></div>
+<div class="field"><label>Stock level</label><input id="stock" type="number" min="0" value="25000"></div>
+<div class="field"><label>1 pcs price ₹</label><input id="p1" type="number" min="0" step=".01" value="85"></div>
+<div class="field"><label>10 pcs price ₹</label><input id="p10" type="number" min="0" step=".01" value="70"></div>
+<div class="field"><label>100 pcs price ₹</label><input id="p100" type="number" min="0" step=".01" value="54"></div>
+<div class="field"><label>1000 pcs price ₹</label><input id="p1000" type="number" min="0" step=".01" value="43"></div>
+<div class="field"><label>Alternate Part</label><input id="alternate" placeholder="Functional alternate"></div>
+<div class="field"><label>Pin-compatible Alternate</label><input id="pinAlternate" placeholder="Drop-in alternate"></div>
+<div class="field full"><label>Last Verification Date</label><input id="verified" type="date"></div>
+</div>
+<div class="actions">
+<button class="primary" id="addBtn">Add / Update Master BOM</button>
+<button id="calcBtn">Recalculate Risk</button>
+<button id="clearBtn">Clear</button>
+</div>
+</section>
+
+<section class="card">
+<h2>Risk analysis</h2>
+<div class="analysis">
+<div class="scorebox"><div class="scorehead"><span>Technical fit</span><b id="technical">80</b></div><div class="bar"><i id="technicalBar"></i></div><small class="sub">Placeholder until electrical requirements are added</small></div>
+<div class="scorebox"><div class="scorehead"><span>Supply availability</span><b id="supply">0</b></div><div class="bar"><i id="supplyBar"></i></div></div>
+<div class="scorebox"><div class="scorehead"><span>Lifecycle / compliance</span><b id="lifecycleScore">0</b></div><div class="bar"><i id="lifecycleBar"></i></div></div>
+<div class="scorebox"><div class="scorehead"><span>Commercial</span><b id="commercial">0</b></div><div class="bar"><i id="commercialBar"></i></div></div>
+</div>
+<div style="margin-top:15px;border-top:1px solid var(--line);padding-top:12px">
+<div class="sub">Composite risk</div>
+<div class="bigscore" id="riskScore">0 / 100</div>
+<span id="riskBadge" class="badge medium">MEDIUM</span>
+</div>
+<div class="section">
+<h2>Risk logic</h2>
+<div class="sub">Current weighting: supply 35% · lifecycle/compliance 20% · commercial 30% · technical 15%</div>
+</div>
+</section>
+</div>
+
+<section class="card section">
+<h2>Data flow</h2>
+<div class="flow">
+<div class="node"><b>HTML</b><br>Enter / edit MPN</div>
+<div class="node"><b>API</b><br>Validate + authenticate</div>
+<div class="node"><b>Master BOM</b><br>Google Sheet</div>
+<div class="node"><b>Device BOMs</b><br>Reference MPN</div>
+<div class="node"><b>Risk engine</b><br>Recalculate</div>
+</div>
+</section>
+
+<section class="card section">
+<div class="toolbar">
+<h2>Master BOM</h2>
+<input class="search" id="search" placeholder="Search MPN / manufacturer / package">
+</div>
+<div class="tablewrap">
+<table>
+<thead><tr>
+<th>MPN</th><th>Manufacturer</th><th>Lifecycle</th><th>RoHS</th><th>REACH</th><th>Package</th>
+<th>Lead Time</th><th>Distributors</th><th>Stock</th><th>₹1</th><th>₹10</th><th>₹100</th><th>₹1000</th>
+<th>Alternate</th><th>Pin Alt</th><th>Verified</th><th>Risk</th>
+</tr></thead>
+<tbody id="bomRows"></tbody>
+</table>
+</div>
+</section>
+
+<section class="card section">
+<h2>Google Sheets synchronization</h2>
+<div class="form">
+<div class="field full"><label>Google Apps Script Web App endpoint</label><input id="apiEndpoint" placeholder="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"></div>
+<div class="field"><label>Master BOM sheet name</label><input id="masterSheet" value="Master BOM"></div>
+<div class="field"><label>Device BOM mode</label><select id="deviceMode"><option>Reference Master BOM by MPN</option><option>Copy snapshot into device sheet</option></select></div>
+</div>
+<div class="actions">
+<button class="primary" id="syncBtn">Sync selected / current data</button>
+<button id="pullBtn">Pull Master BOM</button>
+</div>
+<div class="sub" style="margin-top:8px">For security, do not put a Google service-account/private key in this browser file. Use an Apps Script Web App or another authenticated backend. This page contains no secret credentials.</div>
+</section>
+
+<section class="card section">
+<h2>Activity log</h2>
+<div class="log" id="log">[ready] BOM analysis initialized\n[info] Local demo records can be edited or replaced.\n[info] Configure an Apps Script endpoint to enable remote synchronization.</div>
+</section>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const fields = ['mpn','manufacturer','lifecycle','package','rohs','reach','lead','dist','stock','p1','p10','p100','p1000','alternate','pinAlternate','verified'];
+let selectedMpn = null;
+
+const today = new Date().toISOString().slice(0,10);
+if (!$('verified').value) $('verified').value = today;
+
+let parts = [
+ {mpn:'TPS62160DQCR',manufacturer:'Texas Instruments',lifecycle:'Active',package:'VSON-10',rohs:'Compliant',reach:'Compliant',lead:6,dist:8,stock:25000,p1:85,p10:70,p100:54,p1000:43,alternate:'MPM3610',pinAlternate:'',verified:'2026-09-23'},
+ {mpn:'MP1584EN',manufacturer:'Monolithic Power Systems',lifecycle:'Active',package:'SOIC-8',rohs:'Compliant',reach:'Compliant',lead:12,dist:4,stock:4300,p1:48,p10:41,p100:35,p1000:29,alternate:'TPS54331',pinAlternate:'',verified:'2026-09-12'},
+ {mpn:'ABC-OLD-1',manufacturer:'Example Semiconductor',lifecycle:'NRND',package:'QFN',rohs:'Unknown',reach:'Unknown',lead:28,dist:1,stock:120,p1:31,p10:31,p100:30,p1000:29,alternate:'',pinAlternate:'',verified:'2026-06-10'}
+];
+
+function num(id){ return Math.max(0, Number($(id).value) || 0); }
+function getForm(){
+  return {
+    mpn:$('mpn').value.trim(), manufacturer:$('manufacturer').value.trim(),
+    lifecycle:$('lifecycle').value, package:$('package').value.trim(),
+    rohs:$('rohs').value, reach:$('reach').value,
+    lead:num('lead'), dist:num('dist'), stock:num('stock'),
+    p1:num('p1'), p10:num('p10'), p100:num('p100'), p1000:num('p1000'),
+    alternate:$('alternate').value.trim(), pinAlternate:$('pinAlternate').value.trim(),
+    verified:$('verified').value || today
+  };
+}
+
+function analyze(p){
+  const leadPenalty = Math.min(60,p.lead*2);
+  const distributorScore = Math.min(30,p.dist*5);
+  const stockScore = p.stock >= 100000 ? 10 : p.stock >= 10000 ? 8 : p.stock >= 1000 ? 5 : p.stock > 0 ? 2 : 0;
+  const supply = Math.max(0,Math.min(100,100-leadPenalty+distributorScore+stockScore-30));
+  const life = p.lifecycle==='Active' ? 100 : p.lifecycle==='NRND' ? 35 : p.lifecycle==='Obsolete' ? 5 : 45;
+  const compliance = (p.rohs==='Compliant'?50:15)+(p.reach==='Compliant'?50:15);
+  const lifecycleScore = Math.round((life+compliance)/2);
+  const volumeDiscount = p.p1>0 && p.p1000>0 ? Math.min(100,50+(1-p.p1000/p.p1)*50) : 20;
+  const commercial = Math.round(Math.min(100,(p.dist>=5?30:10)+(p.stock>=10000?30:10)+volumeDiscount*0.4));
+  const technical = 80;
+  const overallRisk = Math.round(100-(technical*.15+supply*.35+lifecycleScore*.20+commercial*.30));
+  return {technical,supply,lifecycleScore,commercial,risk:Math.max(0,Math.min(100,overallRisk))};
+}
+
+function setBar(id,value){$(id).style.width=Math.max(0,Math.min(100,value))+'%';}
+function calculate(){
+  const p=getForm(), a=analyze(p);
+  $('technical').textContent=a.technical; setBar('technicalBar',a.technical);
+  $('supply').textContent=a.supply; setBar('supplyBar',a.supply);
+  $('lifecycleScore').textContent=a.lifecycleScore; setBar('lifecycleBar',a.lifecycleScore);
+  $('commercial').textContent=a.commercial; setBar('commercialBar',a.commercial);
+  $('riskScore').textContent=a.risk+' / 100';
+  const badge=$('riskBadge');
+  badge.className='badge '+(a.risk<30?'low':a.risk<60?'medium':'high');
+  badge.textContent=a.risk<30?'LOW':a.risk<60?'MEDIUM':'HIGH';
+  return a.risk;
+}
+
+function render(){
+  const q=$('search').value.trim().toLowerCase();
+  const tbody=$('bomRows'); tbody.innerHTML='';
+  let visible=parts.filter(p=>[p.mpn,p.manufacturer,p.package].join(' ').toLowerCase().includes(q));
+  visible.forEach(p=>{
+    const risk=analyze(p).risk;
+    const tr=document.createElement('tr');
+    const values=[p.mpn,p.manufacturer,p.lifecycle,p.rohs,p.reach,p.package,p.lead+' wk',p.dist,p.stock.toLocaleString('en-IN'),
+      '₹'+p.p1,'₹'+p.p10,'₹'+p.p100,'₹'+p.p1000,p.alternate||'—',p.pinAlternate||'—',p.verified];
+    values.forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td);});
+    const td=document.createElement('td');td.textContent=risk+' / 100';td.className='risk '+(risk<30?'low':risk<60?'medium':'high');tr.appendChild(td);
+    tr.addEventListener('dblclick',()=>loadPart(p));
+    tbody.appendChild(tr);
+  });
+  $('mCount').textContent=parts.length;
+  $('mHigh').textContent=parts.filter(p=>analyze(p).risk>=60).length;
+  $('mAvg').textContent=parts.length?Math.round(parts.reduce((s,p)=>s+analyze(p).risk,0)/parts.length):0;
+  $('mStale').textContent=parts.filter(p=>daysOld(p.verified)>30).length;
+}
+
+function daysOld(date){
+  if(!date)return 9999;
+  return Math.max(0,Math.floor((Date.now()-new Date(date+'T00:00:00Z').getTime())/86400000));
+}
+function loadPart(p){
+  selectedMpn=p.mpn;
+  fields.forEach(k=>{if($(k))$(k).value=p[k] ?? '';});
+  calculate(); log('[edit] Loaded '+p.mpn);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function log(msg){$('log').textContent='['+new Date().toLocaleTimeString()+'] '+msg+'\\n'+$('log').textContent;}
+function clearForm(){fields.forEach(k=>{if($(k))$(k).value='';});$('lifecycle').value='Active';$('rohs').value='Compliant';$('reach').value='Compliant';$('verified').value=today;$('lead').value=6;$('dist').value=0;$('stock').value=0;selectedMpn=null;calculate();}
+
+$('calcBtn').addEventListener('click',()=>{calculate();log('[analysis] Risk recalculated');});
+$('addBtn').addEventListener('click',()=>{
+  const p=getForm();
+  if(!p.mpn||!p.manufacturer){log('[validation] MPN and Manufacturer are required');return;}
+  p.risk=analyze(p).risk;
+  const index=parts.findIndex(x=>x.mpn===p.mpn);
+  if(index>=0) parts[index]=p; else parts.unshift(p);
+  selectedMpn=p.mpn; render(); calculate();
+  $('syncDot').className='dot warn';$('syncStatus').textContent='Local changes pending sync';
+  log('[saved] '+p.mpn+' updated in local Master BOM');
+});
+$('clearBtn').addEventListener('click',clearForm);
+$('search').addEventListener('input',render);
+
+async function apiRequest(action,payload){
+  const endpoint=$('apiEndpoint').value.trim();
+  if(!endpoint) throw new Error('Configure the Google Apps Script endpoint first.');
+  const response=await fetch(endpoint,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({action,masterSheet:$('masterSheet').value.trim()||'Master BOM',payload})
+  });
+  if(!response.ok) throw new Error('HTTP '+response.status);
+  return await response.json();
+}
+
+$('syncBtn').addEventListener('click',async()=>{
+  try{
+    const p=getForm();
+    if(!p.mpn) throw new Error('Enter an MPN first.');
+    p.risk=analyze(p).risk;
+    $('syncStatus').textContent='Synchronizing…';
+    const result=await apiRequest('upsertComponent',p);
+    $('syncDot').className='dot ok';$('syncStatus').textContent='Google Sheets synced';
+    log('[sync] '+(result.message||'Component synchronized'));
+  }catch(e){$('syncDot').className='dot warn';$('syncStatus').textContent='Sync error';log('[sync error] '+e.message);}
+});
+
+$('pullBtn').addEventListener('click',async()=>{
+  try{
+    $('syncStatus').textContent='Pulling Master BOM…';
+    const result=await apiRequest('getMasterBOM',{});
+    if(!Array.isArray(result.data)) throw new Error('API did not return a data array.');
+    parts=result.data;render();$('syncDot').className='dot ok';$('syncStatus').textContent='Google Sheets synced';log('[pull] Master BOM refreshed: '+parts.length+' records');
+  }catch(e){$('syncDot').className='dot warn';$('syncStatus').textContent='Pull error';log('[pull error] '+e.message);}
+});
+
+fields.forEach(id=>$(id).addEventListener('input',()=>calculate()));
+render();calculate();
+})();
+</script>
+</body>
+</html>
